@@ -1,0 +1,337 @@
+1.	Створення загальної таблиці з даними Toy_all з метою завантаження в Power Bi для подальшого очищення, аналізу та створення візуалізацій.
+
+CREATE TABLE `ultra-badge-401219.ToyShop.Toy_all` AS (
+
+SELECT 
+      s.Sale_ID
+      ,s.Date 
+      ,s.Store_ID
+      ,m.Store_Name
+      ,m.Store_City
+      ,l.Latitude
+      ,l.Longitude
+      ,l.population
+      ,m.Store_Location
+      ,m.Store_Open_Date
+      ,s.Product_ID
+      ,s.Units
+      ,p.Product_Name
+      ,p.Product_Cost
+      ,p.Product_Price
+      ,p.Product_Category
+      --рахуємо загальну вартість замовлень
+      ,s.Units*p.Product_Cost AS total_cost
+      ,s.Units*p.Product_Price AS total_price
+      ,(s.Units*p.Product_Price)-(s.Units*p.Product_Cost) AS total_profit
+
+FROM `ultra-badge-401219.ToyShop.sales` s
+LEFT JOIN `ToyShop.products` p ON s.Product_ID=p.Product_ID
+LEFT JOIN `ToyShop.stores` m ON s.Store_ID=m.Store_ID
+LEFT JOIN `ToyShop.locations` l ON m.Store_City=l.City
+)
+
+2.	Створення таблиці з даними в розрізі категорій товарів Toy_by_category з метою завантаження в Power Bi для подальшого очищення, аналізу та створення візуалізацій, а також для перевірки даних.
+
+Варіант 1 з використанням Group by
+CREATE TABLE `ultra-badge-401219.ToyShop.Toy_by_category` AS (
+SELECT *
+      ,ROUND (total_profit/total_orders,1) AS AVG_profit_by_orders 
+      ,ROUND (total_price/total_orders,1) AS AVG_price_by_orders 
+FROM (
+
+SELECT Product_Category
+      ,COUNT (Sale_ID) total_orders
+      ,SUM (Units) AS quantity
+      ,ROUND (SUM (total_cost),1) AS total_cost
+      ,ROUND (SUM (total_price),1) AS total_price
+      ,ROUND (SUM (total_price)-SUM (total_cost),1)  AS total_profit
+      
+FROM 
+
+(SELECT 
+       s.Sale_ID
+      ,s.Date 
+      ,s.Store_ID
+      ,m.Store_Name
+      ,m.Store_City
+      ,m.Store_Location
+      ,m.Store_Open_Date
+      ,s.Product_ID
+      ,s.Units
+      ,p.Product_Name
+      ,p.Product_Cost
+      ,p.Product_Price
+      ,p.Product_Category
+      ,s.Units*p.Product_Cost total_cost
+      ,s.Units*p.Product_Price total_price
+
+FROM `ultra-badge-401219.ToyShop.sales` s
+LEFT JOIN `ToyShop.products` p ON s.Product_ID=p.Product_ID
+LEFT JOIN `ToyShop.stores` m ON s.Store_ID=m.Store_ID)
+GROUP BY 1)
+)
+
+Варіант 2 з використанням  віконних функцій
+SELECT DISTINCT 
+     Product_Category
+    ,total_orders
+    ,quantity
+    ,ROUND(total_cost, 1) AS total_cost
+    ,ROUND(total_price, 1) AS total_price
+    ,ROUND(total_profit, 1) AS total_profit
+    ,ROUND(total_profit / total_orders, 1) AS AVG_profit_by_orders
+    ,ROUND(total_price / total_orders, 1) AS AVG_price_by_orders
+FROM (
+    SELECT 
+         p.Product_Category
+        ,COUNT(s.Sale_ID) OVER (PARTITION BY p.Product_Category) AS total_orders
+        ,SUM(s.Units) OVER (PARTITION BY p.Product_Category) AS quantity
+        ,SUM(s.Units * p.Product_Cost) OVER (PARTITION BY p.Product_Category) AS total_cost
+        ,SUM(s.Units * p.Product_Price) OVER (PARTITION BY p.Product_Category) AS total_price
+        ,SUM(s.Units * p.Product_Price - s.Units * p.Product_Cost) OVER (PARTITION BY p.Product_Category) AS total_profit
+        
+    FROM 
+        `ultra-badge-401219.ToyShop.sales` s
+    LEFT JOIN 
+        `ToyShop.products` p ON s.Product_ID = p.Product_ID
+    LEFT JOIN 
+        `ToyShop.stores` m ON s.Store_ID = m.Store_ID
+) 
+
+
+3.	Створення таблиці з даними в розрізі продуктів Toy_by_products з метою завантаження в Power Bi для подальшого очищення, аналізу та створення візуалізацій, а також для перевірки даних.
+
+Варіант 1 з використанням Group by
+
+CREATE TABLE `ultra-badge-401219.ToyShop.Toy_by_products` AS (
+SELECT * 
+      ,ROUND (total_profit/total_orders,1) AS AVG_profit_by_orders
+      ,ROUND (total_price/total_orders,1) AS AVG_price_by_orders 
+FROM (
+SELECT Product_ID
+      ,Product_Name
+      ,Product_Cost
+      ,Product_Price
+      ,Product_Category
+      ,COUNT (Sale_ID) AS total_orders
+      ,SUM (Units) AS quantity
+      ,ROUND (SUM (total_cost),1) AS total_cost
+      ,ROUND (SUM (total_price),1) AS total_price
+      ,ROUND (SUM (total_price)-SUM (total_cost),1)  AS total_profit
+FROM (
+SELECT 
+       s.Sale_ID
+      ,s.Date 
+      ,s.Store_ID
+      ,m.Store_Name
+      ,m.Store_City
+      ,m.Store_Location
+      ,m.Store_Open_Date
+      ,s.Product_ID
+      ,s.Units
+      ,p.Product_Name
+      ,p.Product_Cost
+      ,p.Product_Price
+      ,p.Product_Category
+      --рахуємо загальну вартість замовлень
+      ,s.Units*p.Product_Cost total_cost
+      ,s.Units*p.Product_Price total_price
+
+FROM `ultra-badge-401219.ToyShop.sales` s
+LEFT JOIN `ToyShop.products` p ON s.Product_ID=p.Product_ID
+LEFT JOIN `ToyShop.stores` m ON s.Store_ID=m.Store_ID
+)
+GROUP BY Product_ID
+      ,Product_Name
+      ,Product_Cost
+      ,Product_Price
+      ,Product_Category)
+)
+
+Варіант 2 з використанням  віконних функцій
+SELECT DISTINCT
+     Product_ID
+    ,Product_Name
+    ,Product_Cost
+    ,Product_Price
+    ,Product_Category
+    ,total_orders
+    ,quantity
+    ,total_cost
+    ,total_price
+    ,total_profit
+    ,ROUND(total_profit / total_orders, 1) AS AVG_profit_by_orders
+    ,ROUND(total_price / total_orders, 1) AS AVG_price_by_orders
+FROM (
+    SELECT 
+        s.Product_ID
+        ,p.Product_Name
+        ,p.Product_Cost
+        ,p.Product_Price
+        ,p.Product_Category
+        ,COUNT(s.Sale_ID) OVER (PARTITION BY s.Product_ID) AS total_orders
+        ,SUM(s.Units) OVER (PARTITION BY s.Product_ID) AS quantity
+        ,ROUND (SUM(s.Units * p.Product_Cost) OVER (PARTITION BY s.Product_ID),1) AS total_cost
+        ,ROUND (SUM(s.Units * p.Product_Price) OVER (PARTITION BY s.Product_ID),1) AS total_price
+        ,ROUND (SUM(s.Units * p.Product_Price - s.Units * p.Product_Cost) OVER (PARTITION BY s.Product_ID),1) AS total_profit
+        
+    FROM 
+        `ultra-badge-401219.ToyShop.sales` s
+    LEFT JOIN 
+        `ToyShop.products` p ON s.Product_ID = p.Product_ID
+    LEFT JOIN 
+        `ToyShop.stores` m ON s.Store_ID = m.Store_ID
+) 
+
+
+
+4.	Створення таблиці з даними в розрізі магазинів Toy_by_ store з метою завантаження в Power Bi для подальшого очищення, аналізу та створення візуалізацій, а також для перевірки даних.
+
+Варіант 1 з використанням Group by
+CREATE TABLE `ultra-badge-401219.ToyShop.Toy_by_store` AS (
+SELECT *
+      ,ROUND (total_profit/total_orders,1) AS AVG_profit_by_orders 
+      ,ROUND (total_price/total_orders,1) AS AVG_price_by_orders 
+FROM (
+
+SELECT 
+       Store_ID
+      ,Store_Name
+      ,Store_City
+      ,Latitude
+      ,Longitude
+      ,population
+      ,Store_Location
+      ,Store_Open_Date
+      ,COUNT (DISTINCT Sale_ID) AS total_orders   
+      ,ROUND (SUM (total_cost),1) total_cost
+      ,ROUND (SUM (total_price),1) total_price
+      ,ROUND (SUM (total_price)-SUM (total_cost),1) AS total_profit
+  
+FROM  (SELECT 
+       s.Sale_ID
+      ,s.Date 
+      ,s.Store_ID
+      ,m.Store_Name
+      ,m.Store_City
+      ,l.Latitude
+      ,l.Longitude
+      ,l.population
+      ,m.Store_Location
+      ,m.Store_Open_Date
+      ,s.Product_ID
+      ,s.Units
+      ,p.Product_Name
+      ,p.Product_Cost
+      ,p.Product_Price
+      ,p.Product_Category
+      --рахуємо загальну вартість замовлень
+      ,s.Units*p.Product_Cost AS total_cost
+      ,s.Units*p.Product_Price AS total_price
+
+FROM `ultra-badge-401219.ToyShop.sales` s
+LEFT JOIN `ToyShop.products` p ON s.Product_ID=p.Product_ID
+LEFT JOIN `ToyShop.stores` m ON s.Store_ID=m.Store_ID
+LEFT JOIN `ToyShop.locations` l ON m.Store_City=l.City)
+
+GROUP BY Store_ID
+      ,Store_Name
+      ,Store_City
+      ,Latitude
+      ,Longitude
+      ,population
+      ,Store_Location
+      ,Store_Open_Date)
+)
+
+Варіант 2 з використанням  віконних функцій
+SELECT DISTINCT
+       Store_ID
+      ,Store_Name
+      ,Store_City
+      ,Latitude
+      ,Longitude
+      ,population
+      ,Store_Location
+      ,Store_Open_Date
+      ,total_orders
+      ,total_cost
+      ,total_price
+      ,total_profit
+      ,ROUND(total_profit / total_orders, 1) AS AVG_profit_by_orders
+      ,ROUND(total_price / total_orders, 1) AS AVG_price_by_orders
+FROM (
+    SELECT 
+            s.Store_ID
+           ,m.Store_Name
+           ,m.Store_City
+           ,l.Latitude
+           ,l.Longitude
+           ,l.population
+           ,m.Store_Location
+           ,m.Store_Open_Date
+           ,COUNT(DISTINCT s.Sale_ID) OVER (PARTITION BY s.Store_ID) AS total_orders
+           ,ROUND(SUM(s.Units * p.Product_Cost) OVER (PARTITION BY s.Store_ID), 1) AS total_cost
+           ,ROUND(SUM(s.Units * p.Product_Price) OVER (PARTITION BY s.Store_ID), 1) AS total_price
+           ,ROUND(SUM(s.Units * p.Product_Price) OVER (PARTITION BY s.Store_ID) - SUM(s.Units * p.Product_Cost) OVER (PARTITION BY s.Store_ID), 1) AS total_profit
+    FROM `ultra-badge-401219.ToyShop.sales` s
+    LEFT JOIN `ToyShop.products` p ON s.Product_ID = p.Product_ID
+    LEFT JOIN `ToyShop.stores` m ON s.Store_ID = m.Store_ID
+    LEFT JOIN `ToyShop.locations` l ON m.Store_City=l.City
+)
+
+
+
+5.	Створення таблиці з даними в розрізі міст Мексики Toy_by_ city з метою завантаження в Power Bi для подальшого очищення, аналізу та створення візуалізацій.
+
+CREATE TABLE `ultra-badge-401219.ToyShop.Toy_by_city` AS (
+SELECT *
+      ,ROUND (total_profit/total_orders,1) AS AVG_profit_by_orders 
+      ,ROUND (total_price/total_orders,1) AS AVG_price_by_orders 
+FROM (
+
+SELECT 
+       Store_City
+      ,Latitude
+      ,Longitude
+      ,population
+      ,count_store
+      ,COUNT (DISTINCT Sale_ID) AS total_orders   
+      ,ROUND (SUM (total_cost),1) total_cost
+      ,ROUND (SUM (total_price),1) total_price
+      ,ROUND (SUM (total_price)-SUM (total_cost),1) AS total_profit
+  
+FROM  (SELECT 
+       s.Sale_ID
+      ,s.Date 
+      ,s.Store_ID
+      ,m.Store_Name
+      ,m.Store_City
+      ,l.Latitude
+      ,l.Longitude
+      ,l.population
+      ,l.count_store
+      ,m.Store_Location
+      ,m.Store_Open_Date
+      ,s.Product_ID
+      ,s.Units
+      ,p.Product_Name
+      ,p.Product_Cost
+      ,p.Product_Price
+      ,p.Product_Category
+      --рахуємо загальну вартість замовлень
+      ,s.Units*p.Product_Cost AS total_cost
+      ,s.Units*p.Product_Price AS total_price
+
+FROM `ultra-badge-401219.ToyShop.sales` s
+LEFT JOIN `ToyShop.products` p ON s.Product_ID=p.Product_ID
+LEFT JOIN `ToyShop.stores` m ON s.Store_ID=m.Store_ID
+LEFT JOIN `ToyShop.locations` l ON m.Store_City=l.City)
+
+GROUP BY Store_City
+      ,Latitude
+      ,Longitude
+      ,count_store
+      ,population
+      )
+)
