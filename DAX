@@ -1,0 +1,23 @@
+Формули DAX 
+1.Margin = DIVIDE(Toy_by_category[total_profit],Toy_by_category[total_price])*100 - для підрахунку маржи.
+
+2.Кореляція залежності загального обсягу продажів від кількості відкритих магазинів у місті
+Correlation = 
+VAR MeanX = AVERAGE('Toy_by_city'[count_store])
+VAR MeanY = AVERAGE('Toy_by_city'[total_price])
+VAR CovXY = 
+    SUMX(
+        'Toy_by_city',
+        ('Toy_by_city'[count_store] - MeanX) * ('Toy_by_city'[total_price] - MeanY)
+    ) / COUNTROWS('Toy_by_city')
+VAR VarX_Adj = 
+    SUMX(
+        'Toy_by_city',
+        ('Toy_by_city'[count_store] - MeanX) * ('Toy_by_city'[count_store] - MeanX)
+    ) / COUNTROWS('Toy_by_city')
+VAR VarY_Adj = 
+    SUMX(
+        'Toy_by_city',
+        ('Toy_by_city'[total_price] - MeanY) * ('Toy_by_city'[total_price] - MeanY)
+    ) / COUNTROWS('Toy_by_city')
+RETURN CovXY / SQRT(VarX_Adj * VarY_Adj)
